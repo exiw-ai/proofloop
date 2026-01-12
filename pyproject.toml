@@ -1,6 +1,6 @@
 [project]
 name = "proofloop"
-version = "1.0.0"
+version = "1.0.1"
 description = "AI agents that run until done - define conditions, go to sleep, wake up to results"
 license = "Apache-2.0"
 readme = "README.md"
