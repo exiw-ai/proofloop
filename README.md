@@ -17,6 +17,21 @@
 
 ---
 
+## Why Proofloop
+
+Proofloop is an AI agent orchestrator that solves the main problem with coding agents on real-world tasks: **long tasks require constant user-in-the-loop**.
+
+When a task takes more than an hour (often several hours), a regular agent becomes a project you need to babysit:
+
+- "continue", "try differently", "now run tests", "fix the regression"
+- Manual verification after every step
+- Lost context between sessions and iterations
+- Subjective "seems done" instead of proven results
+
+**Proofloop changes the paradigm:** describe what you want (detailed or brief — your choice). During planning, the agent proposes assumptions, risks, a step-by-step plan, and verifiable conditions for "done". You review and approve — then the agent works autonomously until verified completion.
+
+---
+
 ## The Problem
 
 <table>
