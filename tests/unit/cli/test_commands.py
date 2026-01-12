@@ -128,12 +128,14 @@ class TestResumeCommand:
         from src.cli.commands.resume import resume_task
 
         with (
+            patch("src.cli.commands.resume.validate_provider_setup"),
             patch("src.cli.commands.resume.asyncio.run") as mock_run,
         ):
             resume_task(
                 task_id=str(uuid4()),
                 state_dir=tmp_path,
                 auto_approve=False,
+                show_thoughts=True,
                 provider="claude",
             )
 
@@ -151,6 +153,7 @@ class TestRunCommand:
         workspace.mkdir()
 
         with (
+            patch("src.cli.commands.run.validate_provider_setup"),
             patch("src.cli.commands.run.asyncio.run") as mock_run,
         ):
             run_task(
