@@ -59,7 +59,10 @@ jobs:
           fi
       - name: Build distribution
         if: inputs.dry_run != true && steps.release.outputs.released == 'true'
-        run: python -m build
+        run: |
+          # Ensure we have the latest version files after semantic-release
+          git pull origin main
+          python -m build
       - name: Upload dist artifacts
         if: inputs.dry_run != true && steps.release.outputs.released == 'true'
         uses: actions/upload-artifact@v4
