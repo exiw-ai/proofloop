@@ -10,17 +10,8 @@ Get up and running with Proofloop in under 5 minutes.
 
 ## Installation
 
-### Recommended: uv
-
 ```bash
-curl -LsSf https://astral.sh/uv/install.sh | sh
-uv tool install proofloop
-```
-
-### Alternative: pip
-
-```bash
-pip3 install proofloop
+curl -LsSf https://raw.githubusercontent.com/exiw-ai/proofloop/main/install.sh | sh
 ```
 
 ### From Source
@@ -28,7 +19,8 @@ pip3 install proofloop
 ```bash
 git clone https://github.com/exiw-ai/proofloop.git
 cd proofloop
-pip3 install -e .
+uv sync
+uv run proofloop --help
 ```
 
 If `proofloop` command is not found after install:

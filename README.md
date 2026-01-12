@@ -86,7 +86,7 @@ Conditions:
 **1. Install**
 
 ```bash
-pip3 install proofloop
+curl -LsSf https://raw.githubusercontent.com/exiw-ai/proofloop/main/install.sh | sh
 ```
 
 **2. Setup provider** (choose one)
