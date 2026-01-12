@@ -133,12 +133,22 @@ class TestExecuteDeliveryExecute:
     async def test_execute_with_message_callback(
         self, execute_delivery, task_with_plan, mock_agent
     ):
-        """Execute should pass callback to agent."""
+        """Execute should wrap callback with command tracker."""
         callback = MagicMock()
         await execute_delivery.execute(task_with_plan, on_message=callback)
 
         mock_agent.execute.assert_called_once()
-        assert mock_agent.execute.call_args.kwargs.get("on_message") == callback
+        # Callback should be wrapped (not the exact same object)
+        wrapped_callback = mock_agent.execute.call_args.kwargs.get("on_message")
+        assert wrapped_callback is not None
+        assert wrapped_callback != callback  # It's wrapped now
+
+        # Verify the wrapper calls the original callback
+        from src.domain.ports.agent_port import AgentMessage
+
+        test_msg = AgentMessage(role="test", content="test")
+        wrapped_callback(test_msg)
+        callback.assert_called_once_with(test_msg)
 
     @pytest.mark.asyncio
     async def test_execute_without_plan(

@@ -30,9 +30,9 @@ def run_task(
     allow_mcp: bool = typer.Option(False, "--allow-mcp", help="Enable MCP server support"),
     mcp_server: list[str] = typer.Option([], "--mcp-server", "-m", help="Pre-select MCP servers"),
     provider: str = typer.Option(
-        "opencode",
+        ...,
         "--provider",
-        help="Agent provider: opencode, codex, claude",
+        help="Agent provider (required): opencode, codex, claude",
     ),
 ) -> None:
     """Run a new task."""

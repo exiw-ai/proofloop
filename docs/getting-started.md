@@ -82,8 +82,11 @@ Checks Python version, available providers (claude, codex, opencode), and state 
 
 ```bash
 proofloop run "Add REST API endpoint for user registration with validation" \
-  --path ./my-project
+  --path ./my-project \
+  --provider <provider>
 ```
+
+Where `<provider>` is one of: `opencode`, `codex`, `claude`
 
 What happens:
 
@@ -96,7 +99,7 @@ What happens:
 Example session:
 
 ```
-$ proofloop run "Add REST API for user registration with email validation" --path ./backend
+$ proofloop run "Add REST API for user registration with email validation" --path ./backend --provider claude
 
 [Intake] Analyzing project structure...
 [Inventory] Found: pytest, ruff, mypy

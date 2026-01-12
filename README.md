@@ -127,8 +127,11 @@ claude login
 
 ```bash
 proofloop run "Implement OAuth2 with Google, GitHub, and email/password auth" \
-  --path ./my-project
+  --path ./my-project \
+  --provider <provider>
 ```
+
+Where `<provider>` is one of: `opencode`, `codex`, `claude`
 
 ---
 
@@ -144,15 +147,15 @@ proofloop run "Implement OAuth2 with Google, GitHub, and email/password auth" \
 │    -V, --version    Show version and exit                                    │
 │    --help           Show this help message                                   │
 │                                                                              │
-│  proofloop run <description> -p <path>                                       │
+│  proofloop run <description> -p <path> --provider <provider>                 │
 │    Run a coding task autonomously.                                           │
 │                                                                              │
 │    Required:                                                                 │
 │      -p, --path PATH           Workspace path                                │
+│      --provider NAME           Agent: claude, codex, opencode                │
 │    Options:                                                                  │
 │      -y, --auto-approve        Skip interactive approvals                    │
 │      -t, --timeout HOURS       Timeout (default: 4)                          │
-│      --provider NAME           Agent: claude, codex, opencode                │
 │                                                                              │
 │  proofloop task list                                                         │
 │    List all tasks.                                                           │
@@ -164,9 +167,9 @@ proofloop run "Implement OAuth2 with Google, GitHub, and email/password auth" \
 │    Resume a stopped task.                                                    │
 │                                                                              │
 │  Examples:                                                                   │
-│    proofloop run "Migrate to microservices" -p ./backend                     │
-│    proofloop run "Add multi-tenancy with data isolation" -p .                │
-│    proofloop task resume a1b2                                                │
+│    proofloop run "Migrate to microservices" -p ./backend --provider claude   │
+│    proofloop run "Add multi-tenancy" -p . --provider codex                   │
+│    proofloop task resume a1b2 --provider opencode                            │
 │                                                                              │
 ╰──────────────────────────────────────────────────────────────────────────────╯
 ```
@@ -192,7 +195,8 @@ proofloop run "Implement OAuth2 with Google, GitHub, and email/password auth" \
 ```bash
 proofloop run "Implement real-time notifications system with WebSocket server, \
   React hooks, PostgreSQL pub/sub, and comprehensive test coverage" \
-  --path ./myapp
+  --path ./myapp \
+  --provider <provider>
 ```
 
 ### Database migration
@@ -201,7 +205,8 @@ proofloop run "Implement real-time notifications system with WebSocket server, \
 proofloop run "Migrate from MongoDB to PostgreSQL: schema design, \
   data migration scripts, update all repositories and services, \
   ensure zero data loss" \
-  --path ./backend -t 8
+  --path ./backend -t 8 \
+  --provider <provider>
 ```
 
 ### Multi-repo refactoring
@@ -215,7 +220,8 @@ proofloop run "Migrate from MongoDB to PostgreSQL: schema design, \
 proofloop run "Add end-to-end encryption for messages: \
   implement in API, update web and mobile clients, \
   add key rotation, write integration tests" \
-  --path ~/company -t 6
+  --path ~/company -t 6 \
+  --provider <provider>
 ```
 
 ### Legacy modernization
@@ -224,13 +230,14 @@ proofloop run "Add end-to-end encryption for messages: \
 proofloop run "Convert jQuery frontend to React: \
   component architecture, state management with Zustand, \
   preserve all existing functionality, add TypeScript" \
-  --path ./legacy-app -t 10
+  --path ./legacy-app -t 10 \
+  --provider <provider>
 ```
 
-### Provider selection
+### Available providers
 
 ```bash
-proofloop run "..." -p . --provider opencode  # OpenCode (default)
+proofloop run "..." -p . --provider opencode  # OpenCode
 proofloop run "..." -p . --provider codex     # Codex (ChatGPT)
 proofloop run "..." -p . --provider claude    # Claude Code
 ```
@@ -238,9 +245,9 @@ proofloop run "..." -p . --provider claude    # Claude Code
 ### Task management
 
 ```bash
-proofloop task list              # List all tasks
-proofloop task status 550e       # Check status (short ID)
-proofloop task resume 550e       # Resume stopped task
+proofloop task list                            # List all tasks
+proofloop task status 550e                     # Check status (short ID)
+proofloop task resume 550e --provider claude   # Resume stopped task
 ```
 
 ---

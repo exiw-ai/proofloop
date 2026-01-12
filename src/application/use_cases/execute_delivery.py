@@ -4,11 +4,13 @@ from uuid import UUID
 
 from loguru import logger
 
+from src.application.services.command_tracker import CommandTracker
 from src.application.services.tool_gating import get_allowed_tools
 from src.domain.entities.condition import Condition
 from src.domain.entities.iteration import Iteration, IterationDecision
 from src.domain.entities.task import Task
 from src.domain.ports.agent_port import (
+    AgentMessage,
     AgentPort,
     AgentResult,
     MessageCallback,
@@ -37,6 +39,7 @@ class ExecuteDelivery:
         self.diff_port = diff_port
         self.task_repo = task_repo
         self.evidence_store = EvidenceStore(state_dir)
+        self._command_tracker = CommandTracker()
 
     async def _safe_get_diff(self, workspace_path: str) -> DiffResult:
         """Get worktree diff, handling missing workspace gracefully."""
@@ -83,6 +86,16 @@ class ExecuteDelivery:
                     raise
         raise RuntimeError("Unreachable: max_retries exhausted")
 
+    def _wrap_callback_with_tracker(self, on_message: MessageCallback | None) -> MessageCallback:
+        """Wrap callback to also track commands."""
+
+        def wrapped(msg: AgentMessage) -> None:
+            self._command_tracker.on_message(msg)
+            if on_message:
+                on_message(msg)
+
+        return wrapped
+
     async def execute(
         self,
         task: Task,
@@ -103,18 +116,24 @@ class ExecuteDelivery:
         iteration_num = len(task.iterations) + 1
         steps_count = len(task.plan.steps) if task.plan else 0
 
+        # Clear tracker for fresh execution
+        self._command_tracker.clear()
+
+        # Wrap callback to track commands
+        tracking_callback = self._wrap_callback_with_tracker(on_message)
+
         # ONE agent call for ALL steps
         prompt = self._build_full_plan_prompt(task)
         await self._execute_with_stall_retry(
             prompt=prompt,
             allowed_tools=get_allowed_tools(task.status),
             cwd=task.sources[0],
-            on_message=on_message,
+            on_message=tracking_callback,
         )
 
         diff_result = await self._safe_get_diff(task.sources[0])
 
-        # After agent completes, run ALL checks
+        # After agent completes, run ALL checks (with command context)
         check_results = await self._run_all_checks(task, iteration_num, on_message)
 
         # Create single iteration representing full delivery
@@ -396,17 +415,38 @@ Report your progress as you work through each step."""
         Returns (status, evidence_ref, evidence_summary) per contract
         1.2.
         """
-        prompt = f"""Verify if the following condition is currently satisfied:
+        # Get command context from implementation phase
+        command_context = self._command_tracker.format_for_verification()
 
-Condition: {condition.description}
+        # Get files changed in current iteration
+        latest_iteration = task.iterations[-1] if task.iterations else None
+        files_context = ""
+        if latest_iteration and latest_iteration.changes:
+            files_context = f"""
+## Files changed during implementation:
+{chr(10).join(f"- {f}" for f in latest_iteration.changes)}
+"""
 
-Task context: {task.description}
-Working directory: {task.sources[0]}
+        prompt = f"""You are an INDEPENDENT VERIFIER checking if a condition is satisfied.
 
-Instructions:
+## Condition to verify:
+{condition.description}
+
+## Task context:
+{task.description}
+
+## Working directory:
+{task.sources[0]}
+{files_context}
+## Facts from implementation (use these to inform your verification):
+{command_context}
+
+## Instructions:
 1. Analyze what the condition requires
-2. Run appropriate commands to verify it (tests, coverage, linters, builds, etc.)
-3. Check the output against the condition's criteria
+2. Run appropriate commands to verify it
+3. IMPORTANT: If similar commands were run during implementation, use the SAME commands
+   (e.g., if `poetry run pytest` was used, use that instead of bare `pytest`)
+4. Check the output against the condition's criteria
 
 After verification, respond with EXACTLY one of these on a single line:
 - CONDITION_PASS - if the condition is satisfied

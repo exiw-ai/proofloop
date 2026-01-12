@@ -76,12 +76,17 @@ def interactive_clarifications(
             table.add_row(f"[{i}]", opt.label, opt.description)
 
         console.print(table)
-        console.print("  [c] Custom answer")
+        console.print(f"  [{theme.DIM}]Or type your own answer directly[/]")
         console.print()
 
         # Get user choice
         while True:
-            choice = console.input(f"[{theme.HEADER}]Your choice:[/] ").strip().lower()
+            raw_choice = console.input(f"[{theme.HEADER}]Your choice:[/] ").strip()
+            choice = raw_choice.lower()
+
+            # Normalize Cyrillic lookalikes to Latin (common keyboard layout issue)
+            cyrillic_to_latin = {"а": "a", "с": "c", "е": "e"}
+            choice = "".join(cyrillic_to_latin.get(c, c) for c in choice)
 
             if choice == "c":
                 custom_value = console.input(f"[{theme.PROMPT}]Enter your answer:[/] ").strip()
@@ -134,9 +139,15 @@ def interactive_clarifications(
                         )
                     )
                     break
-                console.print(
-                    f"[{theme.ERROR}]Invalid choice. Enter number, 'c' for custom, or 'auto'.[/]"
+                # Treat any other input as custom answer directly
+                answers.append(
+                    ClarificationAnswer(
+                        question_id=q.id,
+                        selected_option="custom",
+                        custom_value=raw_choice,  # Use original input with preserved case
+                    )
                 )
+                break
 
         console.print()
 

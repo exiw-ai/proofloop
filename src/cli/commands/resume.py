@@ -25,9 +25,9 @@ def resume_task(
         help="Show agent reasoning (if available)",
     ),
     provider: str = typer.Option(
-        "opencode",
+        ...,
         "--provider",
-        help="Agent provider: opencode, codex, claude",
+        help="Agent provider (required): opencode, codex, claude",
     ),
 ) -> None:
     """Resume a blocked or stopped task."""

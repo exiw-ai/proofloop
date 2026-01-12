@@ -7,7 +7,7 @@ Complete reference for all Proofloop commands.
 Execute a development task.
 
 ```
-proofloop run <DESCRIPTION> --path <PATH> [OPTIONS]
+proofloop run <DESCRIPTION> --path <PATH> --provider <provider> [OPTIONS]
 ```
 
 ### Arguments
@@ -16,33 +16,38 @@ proofloop run <DESCRIPTION> --path <PATH> [OPTIONS]
 |----------|-------------|
 | `DESCRIPTION` | Task description (required) |
 
+### Required Options
+
+| Option | Short | Description |
+|--------|-------|-------------|
+| `--path PATH` | `-p` | Workspace path |
+| `--provider <provider>` | - | Agent: `claude`, `codex`, `opencode` |
+
 ### Options
 
 | Option | Short | Description | Default |
 |--------|-------|-------------|---------|
-| `--path PATH` | `-p` | Workspace path (required) | - |
 | `--auto-approve` | `-y` | Skip approval prompts | `false` |
 | `--baseline` | - | Run baseline checks first | `false` |
 | `--timeout HOURS` | `-t` | Task timeout in hours | `4` |
 | `--verbose` | `-v` | Debug output | `false` |
 | `--state-dir PATH` | - | State directory | `~/.local/share/proofloop` |
 | `--task-id TEXT` | - | Custom task ID | auto-generated |
-| `--provider TEXT` | - | Agent: claude, codex, opencode | `claude` |
 
 ### Examples
 
 ```bash
 # Basic task
-proofloop run "Add login endpoint" --path ./api
+proofloop run "Add login endpoint" --path ./api --provider <provider>
 
 # Fully autonomous
-proofloop run "Fix all type errors" -p . -y
+proofloop run "Fix all type errors" -p . -y --provider claude
 
 # With timeout
-proofloop run "Large refactor" -p . -t 8
+proofloop run "Large refactor" -p . -t 8 --provider codex
 
-# Different provider
-proofloop run "Add tests" -p . --provider codex
+# With OpenCode
+proofloop run "Add tests" -p . --provider opencode
 ```
 
 ---
@@ -89,18 +94,21 @@ Output includes:
 Resume a stopped task.
 
 ```
-proofloop task resume <TASK_ID> [OPTIONS]
+proofloop task resume <TASK_ID> --provider <provider> [OPTIONS]
 ```
 
 | Argument | Description |
 |----------|-------------|
 | `TASK_ID` | Full UUID or short prefix (4+ chars) |
 
+| Required Option | Description |
+|-----------------|-------------|
+| `--provider <provider>` | Agent: `claude`, `codex`, `opencode` |
+
 | Option | Short | Description | Default |
 |--------|-------|-------------|---------|
 | `--state-dir PATH` | - | State directory | `~/.local/share/proofloop` |
 | `--auto-approve` | `-y` | Skip approvals | `false` |
-| `--provider` | - | Agent: claude, codex, opencode | `claude` |
 
 ---
 
@@ -146,7 +154,7 @@ Available for all commands:
 
 ## Providers
 
-### OpenCode (default)
+### OpenCode
 
 Flexible backends. Requires:
 - OpenCode CLI installed
