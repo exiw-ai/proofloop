@@ -1,3 +1,4 @@
+from src.application.prompts import workspace_restriction_prompt
 from src.application.services.tool_gating import get_allowed_tools
 from src.domain.entities.task import Task
 from src.domain.ports.agent_port import AgentPort, MessageCallback
@@ -29,8 +30,9 @@ class RunQualityLoop:
         """
         task.transition_to(TaskStatus.QUALITY)
 
+        workspace = task.sources[0]
         for _ in range(max_iterations):
-            prompt = f"""Review the changes made for this task: {task.description}
+            prompt = f"""{workspace_restriction_prompt(workspace)}Review the changes made for this task: {task.description}
 
 Check for:
 - Code quality and conventions
@@ -42,7 +44,7 @@ If improvements are needed, make them. Otherwise respond with "QUALITY_OK"."""
             result = await self.agent.execute(
                 prompt=prompt,
                 allowed_tools=get_allowed_tools(task.status),
-                cwd=task.sources[0],
+                cwd=workspace,
                 on_message=on_message,
             )
 

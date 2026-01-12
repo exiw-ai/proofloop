@@ -4,6 +4,7 @@ from uuid import UUID
 
 from loguru import logger
 
+from src.application.prompts import workspace_restriction_prompt
 from src.application.services.command_tracker import CommandTracker
 from src.application.services.tool_gating import get_allowed_tools
 from src.domain.entities.condition import Condition
@@ -427,7 +428,8 @@ Report your progress as you work through each step."""
 {chr(10).join(f"- {f}" for f in latest_iteration.changes)}
 """
 
-        prompt = f"""You are an INDEPENDENT VERIFIER checking if a condition is satisfied.
+        workspace = task.sources[0]
+        prompt = f"""{workspace_restriction_prompt(workspace)}You are an INDEPENDENT VERIFIER checking if a condition is satisfied.
 
 ## Condition to verify:
 {condition.description}
@@ -436,7 +438,7 @@ Report your progress as you work through each step."""
 {task.description}
 
 ## Working directory:
-{task.sources[0]}
+{workspace}
 {files_context}
 ## Facts from implementation (use these to inform your verification):
 {command_context}
@@ -458,7 +460,7 @@ Include a brief explanation before the verdict."""
         result = await self._execute_with_stall_retry(
             prompt=prompt,
             allowed_tools=get_allowed_tools(task.status),
-            cwd=task.sources[0],
+            cwd=workspace,
             on_message=on_message,
         )
         end_time = datetime.now(UTC)

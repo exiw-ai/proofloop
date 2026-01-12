@@ -1,4 +1,5 @@
 from collections.abc import AsyncIterator
+from pathlib import Path
 from typing import Any, cast
 
 from claude_code_sdk import (
@@ -10,6 +11,11 @@ from claude_code_sdk import (
     ToolResultBlock,
     ToolUseBlock,
     query,
+)
+from claude_code_sdk.types import (
+    PermissionResultAllow,
+    PermissionResultDeny,
+    ToolPermissionContext,
 )
 from loguru import logger
 from rich.console import Console
@@ -26,8 +32,42 @@ from src.domain.value_objects.mcp_types import MCPServerConfig
 
 MCPServersDict = dict[str, Any]
 
+# Tools that access filesystem paths
+_PATH_TOOLS = frozenset({"Read", "Edit", "Write", "Glob", "Grep"})
+
 # Track if rate limit notification was shown (show only once)
 _rate_limit_notified = False
+
+
+def _make_workspace_validator(
+    workspace: Path,
+) -> Any:
+    """Create a workspace validation callback for can_use_tool.
+
+    Returns a callback that denies access to paths outside the
+    workspace.
+    """
+
+    async def validate(
+        tool_name: str,
+        tool_input: dict[str, Any],
+        context: ToolPermissionContext,  # noqa: ARG001
+    ) -> PermissionResultAllow | PermissionResultDeny:
+        if tool_name in _PATH_TOOLS:
+            path_str = tool_input.get("file_path") or tool_input.get("path")
+            if path_str:
+                try:
+                    resolved = Path(path_str).resolve()
+                    if not resolved.is_relative_to(workspace):
+                        logger.warning(f"[CLAUDE] Blocked access outside workspace: {path_str}")
+                        return PermissionResultDeny(
+                            message=f"Access denied: {path_str} is outside workspace {workspace}"
+                        )
+                except (ValueError, OSError):
+                    pass  # Let SDK handle invalid paths
+        return PermissionResultAllow()
+
+    return validate
 
 
 def _is_rate_limit_error(e: BaseException) -> bool:
@@ -69,15 +109,20 @@ class ClaudeAgentAdapter(AgentPort):
         cwd: str,
         mcp_servers: dict[str, MCPServerConfig] | None,
     ) -> ClaudeCodeOptions:
-        """Build SDK options with MCP servers configuration."""
+        """Build SDK options with MCP servers configuration and workspace
+        validation."""
         sdk_mcp_servers: MCPServersDict = {}
         if mcp_servers:
             sdk_mcp_servers = {name: cfg.to_sdk_config() for name, cfg in mcp_servers.items()}
+
+        workspace = Path(cwd).resolve()
+        workspace_validator = _make_workspace_validator(workspace)
 
         return ClaudeCodeOptions(
             allowed_tools=allowed_tools,
             cwd=cwd,
             mcp_servers=cast(Any, sdk_mcp_servers) if sdk_mcp_servers else {},
+            can_use_tool=workspace_validator,
         )
 
     async def execute(
@@ -92,6 +137,17 @@ class ClaudeAgentAdapter(AgentPort):
         options = self._build_options(allowed_tools, cwd, mcp_servers)
         logger.debug(f"Executing agent with prompt:\n{prompt}")
         return await self._execute_query(prompt, options, on_message)
+
+    @staticmethod
+    async def _prompt_to_stream(prompt: str) -> AsyncIterator[dict[str, Any]]:
+        """Convert string prompt to async iterable for streaming mode.
+
+        Required when using can_use_tool callback.
+        """
+        yield {
+            "type": "user",
+            "message": {"role": "user", "content": prompt},
+        }
 
     @retry(
         retry=retry_if_exception(_is_retryable_error),
@@ -111,7 +167,10 @@ class ClaudeAgentAdapter(AgentPort):
         tools_used: set[str] = set()
         agent_info: AgentInfo | None = None
 
-        async for message in query(prompt=prompt, options=options):
+        # Use streaming input when can_use_tool is set (SDK requirement)
+        prompt_input = self._prompt_to_stream(prompt) if options.can_use_tool else prompt
+
+        async for message in query(prompt=prompt_input, options=options):
             # Capture model info from first AssistantMessage
             if isinstance(message, AssistantMessage) and agent_info is None:
                 agent_info = AgentInfo(
@@ -164,7 +223,10 @@ class ClaudeAgentAdapter(AgentPort):
         options = self._build_options(allowed_tools, cwd, mcp_servers)
         logger.debug(f"Streaming agent with prompt: {prompt[:100]}...")
 
-        async for message in query(prompt=prompt, options=options):
+        # Use streaming input when can_use_tool is set (SDK requirement)
+        prompt_input = self._prompt_to_stream(prompt) if options.can_use_tool else prompt
+
+        async for message in query(prompt=prompt_input, options=options):
             for agent_msg in self._convert_message(message):
                 yield agent_msg
 

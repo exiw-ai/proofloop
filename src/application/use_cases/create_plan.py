@@ -2,6 +2,7 @@ from pathlib import Path
 
 from loguru import logger
 
+from src.application.prompts import workspace_restriction_prompt
 from src.application.use_cases.hydrate_external_context import HydrateExternalContext
 from src.domain.entities.plan import Plan, PlanStep
 from src.domain.entities.task import Task
@@ -35,18 +36,26 @@ class CreatePlan:
         clarification."""
         conventions = []
         frameworks = []
+        project_structure = {}
         if task.verification_inventory:
             conventions = task.verification_inventory.conventions
-            frameworks = task.verification_inventory.project_structure.get("frameworks", [])
+            project_structure = task.verification_inventory.project_structure
+            frameworks = project_structure.get("frameworks", [])
 
-        prompt = f"""Analyze this task and identify key decisions that need user clarification.
+        # Check if project is empty (no source files found in Step 1)
+        is_empty_project = (
+            not project_structure.get("src_dirs")
+            and not project_structure.get("root_files")
+            and not project_structure.get("test_dirs")
+        )
 
-Task: {task.description}
-Goals: {task.goals}
-Constraints: {task.constraints}
-Project conventions: {conventions}
-Frameworks in use: {frameworks}
-
+        if is_empty_project:
+            search_instructions = """
+NOTE: This is an EMPTY workspace with no existing code.
+Do NOT search for existing implementation - there is none.
+Focus on clarifying requirements for building from scratch."""
+        else:
+            search_instructions = """
 IMPORTANT - Before generating questions:
 1. Extract key domain terms from the task description
 2. Search for existing implementation:
@@ -57,9 +66,19 @@ IMPORTANT - Before generating questions:
    - MODIFICATION (keywords: "change", "migrate", "replace", "switch", "refactor")
      → Ask questions about desired changes even if implementation exists
    - CONTINUATION (keywords: "create", "add", "implement", "extend", "complete")
-     → Do NOT ask about already implemented parts, use existing code
+     → Do NOT ask about already implemented parts, use existing code"""
 
-Only ask about genuinely ambiguous decisions based on the determined intent.
+        workspace = task.sources[0]
+        prompt = f"""{workspace_restriction_prompt(workspace)}Analyze this task and identify key decisions that need user clarification.
+
+Task: {task.description}
+Goals: {task.goals}
+Constraints: {task.constraints}
+Project conventions: {conventions}
+Frameworks in use: {frameworks}
+{search_instructions}
+
+Only ask about genuinely ambiguous decisions.
 
 Return JSON array (empty if task is clear or existing code answers the questions):
 [
@@ -81,7 +100,7 @@ Limit to 3-5 most important questions."""
         result = await self.agent.execute(
             prompt=prompt,
             allowed_tools=PLANNING_ALLOWED_TOOLS,
-            cwd=task.sources[0],
+            cwd=workspace,
             on_message=on_message,
         )
 
@@ -147,9 +166,15 @@ User decisions on ambiguous points:
 These decisions are REQUIREMENTS - incorporate them into the plan.
 """
 
-        # Format project context section
+        # Format project context section and check if empty
         project_context = ""
-        if project_structure:
+        is_empty_project = (
+            not project_structure.get("src_dirs")
+            and not project_structure.get("root_files")
+            and not project_structure.get("test_dirs")
+        )
+
+        if project_structure and not is_empty_project:
             structure_text = []
             if project_structure.get("root_files"):
                 structure_text.append(
@@ -167,13 +192,14 @@ Project structure (pre-analyzed):
 {chr(10).join(structure_text)}
 """
 
-        prompt = f"""Create an execution plan for this task:
-
-Description: {task.description}
-Goals: {task.goals}
-Constraints: {task.constraints}
-Project conventions: {conventions}
-{project_context}{clarification_section}
+        # Different instructions for empty vs existing projects
+        if is_empty_project:
+            search_instructions = """
+NOTE: This is an EMPTY workspace - building from scratch.
+Do NOT search for existing implementation - there is none.
+Plan should create all necessary files and structure."""
+        else:
+            search_instructions = """
 IMPORTANT - Before creating the plan:
 1. Extract key domain terms from the task description
 2. Search for existing implementation:
@@ -184,10 +210,17 @@ IMPORTANT - Before creating the plan:
    - MODIFICATION (keywords: "change", "migrate", "replace", "switch", "refactor")
      → Plan should modify/replace existing implementation
    - CONTINUATION (keywords: "create", "add", "implement", "extend", "complete")
-     → Plan should BUILD ON existing code, not recreate it
+     → Plan should BUILD ON existing code, not recreate it"""
 
-If no existing implementation found:
-- Treat as greenfield and create from scratch
+        workspace = task.sources[0]
+        prompt = f"""{workspace_restriction_prompt(workspace)}Create an execution plan for this task:
+
+Description: {task.description}
+Goals: {task.goals}
+Constraints: {task.constraints}
+Project conventions: {conventions}
+{project_context}{clarification_section}
+{search_instructions}
 {self._get_research_context_hint(task)}
 Return JSON:
 {{
@@ -206,7 +239,7 @@ Return JSON:
         result = await self.agent.execute(
             prompt=prompt,
             allowed_tools=PLANNING_ALLOWED_TOOLS,
-            cwd=task.sources[0],
+            cwd=workspace,
             on_message=on_message,
         )
 
@@ -241,8 +274,9 @@ Return JSON:
 
         current_plan = task.plan
         conventions = task.verification_inventory.conventions if task.verification_inventory else []
+        workspace = task.sources[0]
 
-        prompt = f"""Refine the execution plan based on user feedback.
+        prompt = f"""{workspace_restriction_prompt(workspace)}Refine the execution plan based on user feedback.
 
 Current plan:
 Goal: {current_plan.goal}
@@ -271,7 +305,7 @@ Return an UPDATED JSON plan addressing the feedback:
         result = await self.agent.execute(
             prompt=prompt,
             allowed_tools=PLANNING_ALLOWED_TOOLS,
-            cwd=task.sources[0],
+            cwd=workspace,
             on_message=on_message,
         )
 

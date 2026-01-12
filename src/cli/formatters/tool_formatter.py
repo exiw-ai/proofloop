@@ -38,6 +38,7 @@ TOOL_OPERATIONS: dict[str, str] = {
     "TodoWrite": "Todo",
     "Task": "Agent",
     "NotebookEdit": "Update",
+    "Skill": "Skill",
 }
 
 TODO_STATUS_ICONS: dict[str, tuple[str, str]] = {
@@ -114,6 +115,13 @@ def _get_tool_argument(tool_name: str, tool_input: dict[str, object] | None) -> 
     if tool_name == "NotebookEdit":
         path = str(tool_input.get("notebook_path", ""))
         return _make_relative(path)
+
+    if tool_name == "Skill":
+        skill = str(tool_input.get("skill", ""))
+        args = tool_input.get("args")
+        if args:
+            return f"{skill} {args}"
+        return skill
 
     return ""
 

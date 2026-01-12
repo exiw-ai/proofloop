@@ -2,6 +2,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from uuid import UUID
 
+from src.application.prompts import workspace_restriction_prompt
 from src.domain.entities import (
     ContextRefPayload,
     KeyFinding,
@@ -52,7 +53,7 @@ class GenerateLLMHandoff:
         findings = await self.kb_store.list_findings()
 
         # Generate headline and approach using agent
-        prompt = f"""Based on this research, generate a summary for code implementation.
+        prompt = f"""{workspace_restriction_prompt(str(workspace_path))}Based on this research, generate a summary for code implementation.
 
 Research Task: {task.description}
 Goals: {task.goals}

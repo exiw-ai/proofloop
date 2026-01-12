@@ -25,6 +25,7 @@ from src.cli.formatters.stage_formatter import (
 from src.cli.formatters.tool_formatter import create_tool_callback
 from src.cli.mcp.ui import interactive_mcp_selection
 from src.cli.theme import theme
+from src.cli.utils import sanitize_terminal_input
 from src.domain.entities.condition import Condition
 from src.domain.entities.plan import Plan
 from src.domain.value_objects.agent_provider import AgentProvider
@@ -89,7 +90,8 @@ def interactive_clarifications(
             choice = "".join(cyrillic_to_latin.get(c, c) for c in choice)
 
             if choice == "c":
-                custom_value = console.input(f"[{theme.PROMPT}]Enter your answer:[/] ").strip()
+                raw_custom = console.input(f"[{theme.PROMPT}]Enter your answer:[/] ").strip()
+                custom_value = sanitize_terminal_input(raw_custom)
                 answers.append(
                     ClarificationAnswer(
                         question_id=q.id,
@@ -144,7 +146,7 @@ def interactive_clarifications(
                     ClarificationAnswer(
                         question_id=q.id,
                         selected_option="custom",
-                        custom_value=raw_choice,  # Use original input with preserved case
+                        custom_value=sanitize_terminal_input(raw_choice),
                     )
                 )
                 break
@@ -162,7 +164,7 @@ def _handle_edit_command(choice: str, conditions: list[Condition], console: Cons
             cond = conditions[idx]
             console.print(f"\n[{theme.PROMPT}]Current: {cond.description}[/]")
             console.print(f"[{theme.PROMPT}]New description (Enter to keep):[/]")
-            new_desc = console.input("> ").strip()
+            new_desc = sanitize_terminal_input(console.input("> ").strip())
             if new_desc:
                 cond.description = new_desc
                 console.print(f"[{theme.SUCCESS}]Updated[/]")
@@ -245,7 +247,7 @@ def interactive_conditions_editor(
 
         elif choice == "a":
             console.print(f"\n[{theme.PROMPT}]Enter condition description:[/]")
-            desc = console.input("> ").strip()
+            desc = sanitize_terminal_input(console.input("> ").strip())
             if not desc:
                 console.print(f"[{theme.ERROR}]Description cannot be empty[/]")
                 continue
@@ -284,7 +286,7 @@ def _get_multiline_input(console: Console) -> str:
     """Collect multi-line input from user until an empty line is entered."""
     lines: list[str] = []
     while True:
-        line = console.input()
+        line = sanitize_terminal_input(console.input())
         if line == "":
             break
         lines.append(line)

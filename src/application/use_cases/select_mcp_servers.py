@@ -4,6 +4,7 @@ import json
 
 from loguru import logger
 
+from src.application.prompts import workspace_restriction_prompt
 from src.domain.entities.task import Task
 from src.domain.ports.agent_port import AgentPort, MessageCallback
 from src.domain.value_objects.mcp_types import MCPServerRegistry, MCPServerTemplate
@@ -63,7 +64,8 @@ class SelectMCPServers:
                 }
             )
 
-        prompt = f"""Analyze this task and determine which MCP (Model Context Protocol) servers would be helpful.
+        workspace = task.sources[0] if task.sources else "."
+        prompt = f"""{workspace_restriction_prompt(workspace)}Analyze this task and determine which MCP (Model Context Protocol) servers would be helpful.
 
 Task: {task.description}
 Goals: {task.goals}
@@ -77,7 +79,7 @@ Consider:
 2. Does it need external API data (Jira, GitHub, GitLab)? → corresponding servers
 3. Does it involve database operations? → postgres or sqlite
 4. Does it need web search or fetch? → brave-search or fetch
-5. Does it involve file operations outside cwd? → filesystem
+5. Does it involve file operations outside the workspace? → filesystem
 
 Return JSON array of suggested servers (empty if none needed):
 [
@@ -95,7 +97,7 @@ If the task can be completed with standard file operations, return empty array [
         result = await self.agent.execute(
             prompt=prompt,
             allowed_tools=["Read", "Glob", "Grep"],
-            cwd=task.sources[0] if task.sources else ".",
+            cwd=workspace,
             on_message=on_message,
         )
 

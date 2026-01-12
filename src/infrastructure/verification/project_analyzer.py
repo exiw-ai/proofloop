@@ -2,6 +2,7 @@ import json
 
 from loguru import logger
 
+from src.application.prompts import workspace_restriction_prompt
 from src.domain.ports.agent_port import AgentPort, MessageCallback
 from src.domain.ports.verification_port import ProjectAnalysis, VerificationPort
 from src.infrastructure.utils import extract_json
@@ -30,7 +31,7 @@ class ProjectAnalyzer(VerificationPort):
         package.json, Makefile, etc.) to identify test, lint, build, and
         typecheck commands along with project conventions.
         """
-        prompt = f"""Analyze the project at {path} and return a JSON with:
+        prompt = f"""{workspace_restriction_prompt(path)}Analyze the project at {path} and return a JSON with:
 {{
     "structure": {{"root_files": [...], "src_dirs": [...], "test_dirs": [...]}},
     "commands": {{

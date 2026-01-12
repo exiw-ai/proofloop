@@ -221,7 +221,16 @@ Respond with JSON:
             {"conditions": [], "reasoning": "No semantic conditions needed"},
         )
 
-        conditions = list(data.get("conditions", []))[:3]  # Max 3
+        raw_conditions = data.get("conditions", [])[:3]  # Max 3
+        # Normalize conditions: agent may return strings or dicts with "description" key
+        conditions: list[str] = []
+        for item in raw_conditions:
+            if isinstance(item, str):
+                conditions.append(item)
+            elif isinstance(item, dict) and "description" in item:
+                conditions.append(str(item["description"]))
+            # Skip invalid items silently
+
         reasoning = str(data.get("reasoning", ""))
 
         if conditions:

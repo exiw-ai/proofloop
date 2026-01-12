@@ -1,7 +1,9 @@
 import asyncio
 import contextlib
+import json
 import shutil
 from collections.abc import AsyncIterator
+from pathlib import Path
 from typing import Any
 
 import httpx
@@ -127,6 +129,7 @@ class OpenCodeAgentAdapter(AgentPort):
         self._base_url = f"http://localhost:{port}"
         self._server_process: asyncio.subprocess.Process | None = None
         self._server_cwd: str | None = None
+        self._created_config: Path | None = None  # Track if we created opencode.json
 
     @staticmethod
     def _extract_provider_id(config: Any) -> str | None:
@@ -141,6 +144,14 @@ class OpenCodeAgentAdapter(AgentPort):
 
     async def _ensure_server_running(self, cwd: str) -> None:
         """Ensure OpenCode server is running with correct working directory."""
+        # Create opencode.json with workspace restrictions if it doesn't exist
+        config_path = Path(cwd) / "opencode.json"
+        if not config_path.exists():
+            config = {"permission": {"external_directory": "deny"}}
+            config_path.write_text(json.dumps(config, indent=2))
+            self._created_config = config_path
+            logger.info(f"[OPENCODE] Created workspace config: {config_path}")
+
         if await self._health_check():
             if self._server_cwd == cwd:
                 logger.debug("[OPENCODE] Server already running with correct CWD")
@@ -182,7 +193,13 @@ class OpenCodeAgentAdapter(AgentPort):
         raise RuntimeError(f"OpenCode server failed to start within {SERVER_STARTUP_TIMEOUT}s")
 
     async def cleanup(self) -> None:
-        """Stop the OpenCode server if we started it."""
+        """Stop the OpenCode server and clean up created config."""
+        # Remove opencode.json if we created it
+        if self._created_config and self._created_config.exists():
+            self._created_config.unlink()
+            logger.info(f"[OPENCODE] Removed workspace config: {self._created_config}")
+            self._created_config = None
+
         if self._server_process and self._server_process.returncode is None:
             logger.info("[OPENCODE] Stopping server...")
             self._server_process.terminate()

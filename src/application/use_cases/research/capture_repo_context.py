@@ -1,5 +1,6 @@
 from pathlib import Path
 
+from src.application.prompts import workspace_restriction_prompt
 from src.domain.entities import Task
 from src.domain.ports.agent_port import AgentPort, MessageCallback
 from src.domain.value_objects import TaskStatus
@@ -45,7 +46,7 @@ class CaptureRepoContext:
             "full": {"max_files": 500, "max_excerpts": 50, "max_bytes": 10000},
         }.get(mode, {"max_files": 50, "max_excerpts": 20, "max_bytes": 5000})
 
-        prompt = f"""Analyze the codebase structure to provide context for research.
+        prompt = f"""{workspace_restriction_prompt(str(workspace_path))}Analyze the codebase structure to provide context for research.
 
 Workspace: {workspace_path}
 Mode: {mode}

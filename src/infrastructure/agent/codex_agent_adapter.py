@@ -75,19 +75,9 @@ class CodexAgentAdapter(AgentPort):
 
     Uses python-codex-sdk for streaming execution.
 
-    WARNING: SECURITY NOTICE
-    ========================
-    This adapter runs with approval_policy="never" which means:
-
-    1. The agent has FULL filesystem and network access
-    2. All tool calls are auto-approved without human verification
-    3. The allowed_tools parameter is NOT enforced by this adapter
-
-    Only use this adapter in trusted environments where you accept
-    that the LLM can execute arbitrary code on your machine.
-
-    For production use cases requiring security, use ClaudeAgentAdapter
-    which enforces tool gating and provides better security controls.
+    Security: Runs with sandbox_mode="workspace-write" which restricts
+    file writes to the working directory only. Network access is enabled.
+    All tool calls are auto-approved (approval_policy="never").
     """
 
     def __init__(self) -> None:
@@ -99,10 +89,6 @@ class CodexAgentAdapter(AgentPort):
             )
         self._codex = Codex(CodexOptions(codex_path_override=codex_path))
         logger.info(f"[CODEX] Using binary at: {codex_path}")
-        logger.warning(
-            "[CODEX] SECURITY WARNING: Codex adapter runs with full system access "
-            "and auto-approves all tool calls. Only use in trusted environments."
-        )
 
     async def execute(
         self,
@@ -138,7 +124,8 @@ class CodexAgentAdapter(AgentPort):
         thread_options = ThreadOptions(
             working_directory=cwd,
             approval_policy="never",
-            sandbox_mode="danger-full-access",
+            sandbox_mode="workspace-write",
+            network_access_enabled=True,
             skip_git_repo_check=True,
         )
         thread = self._codex.start_thread(thread_options)
@@ -262,7 +249,8 @@ class CodexAgentAdapter(AgentPort):
         thread_options = ThreadOptions(
             working_directory=cwd,
             approval_policy="never",
-            sandbox_mode="danger-full-access",
+            sandbox_mode="workspace-write",
+            network_access_enabled=True,
             skip_git_repo_check=True,
         )
         thread = self._codex.start_thread(thread_options)
