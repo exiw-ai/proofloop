@@ -1,0 +1,38 @@
+name: Publish to PyPI
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to publish (must match existing GitHub release)'
+        required: true
+        type: string
+permissions:
+  contents: read
+  id-token: write # Required for Trusted Publishers (OIDC)
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/p/proofloop
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: v${{ inputs.version }}
+      - name: Verify version tag exists
+        run: |
+          if ! git describe --tags --exact-match HEAD 2>/dev/null; then
+            echo "Error: Tag v${{ inputs.version }} not found"
+            exit 1
+          fi
+          echo "Publishing version ${{ inputs.version }}"
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install build tools
+        run: pip install build
+      - name: Build distribution
+        run: python -m build
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1

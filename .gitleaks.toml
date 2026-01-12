@@ -1,0 +1,9 @@
+[extend]
+useDefault = true
+
+[[rules]]
+id = "generic-api-key"
+allowlists = [
+    { paths = ["tests/unit/domain/services/test_secret_redactor.py"] },
+    { paths = ["tests/unit/infrastructure/research/test_repo_context_store.py"] },
+]
