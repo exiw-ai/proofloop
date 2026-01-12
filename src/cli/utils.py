@@ -15,3 +15,15 @@ def sanitize_terminal_input(text: str) -> str:
         Sanitized text with surrogates removed
     """
     return text.encode("utf-8", "ignore").decode("utf-8")
+
+
+def has_rate_limit_text(text: str) -> bool:
+    """Detect rate limit messaging in user-visible text."""
+    msg = text.lower()
+    return (
+        "hit your limit" in msg
+        or "rate limit" in msg
+        or "usage limit" in msg
+        or "quota" in msg
+        or "429" in msg
+    )

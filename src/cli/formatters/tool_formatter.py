@@ -259,11 +259,17 @@ def format_assistant_message(console: Console, msg: AgentMessage) -> bool:
     """
     from loguru import logger
 
+    from src.cli.utils import has_rate_limit_text
+
     if not msg.content:
         return False
 
     content = msg.content.strip()
     if not content:
+        return False
+
+    if has_rate_limit_text(content):
+        logger.debug(f"[THOUGHT] Skipping rate limit message: {content[:50]}...")
         return False
 
     # Skip JSON-like content (agent responses with structured data)

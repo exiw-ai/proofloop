@@ -1,4 +1,5 @@
 import asyncio
+import logging
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -143,6 +144,13 @@ def setup_logging(verbose: bool = False, task_id: str | None = None) -> Path:
             format="{time:HH:mm:ss} | {level: <8} | {message}",
             level="DEBUG",
         )
+
+    # Silence noisy stdlib loggers from external SDKs.
+    for name in ("claude_code_sdk", "claude_code_sdk._internal.query"):
+        sdk_logger = logging.getLogger(name)
+        sdk_logger.handlers = [logging.NullHandler()]
+        sdk_logger.propagate = False
+        sdk_logger.setLevel(logging.CRITICAL)
 
     return log_file
 

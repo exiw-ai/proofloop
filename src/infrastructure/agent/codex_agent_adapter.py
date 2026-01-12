@@ -6,6 +6,7 @@ from codex_sdk import Codex, CodexOptions, ThreadOptions
 from codex_sdk.events import (
     ItemCompletedEvent,
     ItemStartedEvent,
+    ThreadErrorEvent,
     ThreadEvent,
     TurnCompletedEvent,
     TurnFailedEvent,
@@ -36,7 +37,26 @@ _rate_limit_notified = False
 def _is_rate_limit_error(e: BaseException) -> bool:
     """Check if error is a rate limit error (retry infinitely)."""
     msg = str(e).lower()
-    return "rate limit" in msg or "429" in msg or "usage limit" in msg or "limit" in msg
+    return (
+        "hit your limit" in msg
+        or "rate limit" in msg
+        or "usage limit" in msg
+        or "quota" in msg
+        or "429" in msg
+        or "limit" in msg
+    )
+
+
+def _has_rate_limit_text(text: str) -> bool:
+    """Check text content for rate limit indicators."""
+    msg = text.lower()
+    return (
+        "hit your limit" in msg
+        or "rate limit" in msg
+        or "usage limit" in msg
+        or "quota" in msg
+        or "429" in msg
+    )
 
 
 def _is_retryable_error(e: BaseException) -> bool:
@@ -67,7 +87,7 @@ def _log_retry(retry_state: Any) -> None:
     if _is_rate_limit_error(exc) and not _rate_limit_notified:
         _rate_limit_notified = True
         console = Console()
-        console.print("[dim]Rate limit hit. Waiting for API availability...[/dim]")
+        console.print("[bold red]Rate limit hit. Waiting for API availability...[/]")
 
 
 class CodexAgentAdapter(AgentPort):
@@ -120,6 +140,7 @@ class CodexAgentAdapter(AgentPort):
         tools_used: set[str] = set()
         agent_info = AgentInfo(provider="codex", model="codex-cli", model_provider="openai")
         logger.info("[CODEX] Model: codex-cli via openai")
+        rate_limit_state = {"detected": False}
 
         thread_options = ThreadOptions(
             working_directory=cwd,
@@ -135,7 +156,7 @@ class CodexAgentAdapter(AgentPort):
         streamed = await thread.run_streamed(prompt)
 
         async for event in streamed.events:
-            self._process_event(event, messages, tools_used, on_message)
+            self._process_event(event, messages, tools_used, on_message, rate_limit_state)
 
             match event:
                 case TurnCompletedEvent():
@@ -146,7 +167,13 @@ class CodexAgentAdapter(AgentPort):
                         raise RuntimeError(
                             "Codex is not authorized. Run 'codex' to login with your OpenAI account."
                         )
+                    if rate_limit_state["detected"] or _has_rate_limit_text(err.message):
+                        raise RuntimeError(f"Rate limit hit: {err.message}")
                     raise RuntimeError(f"Codex turn failed: {err.message}")
+                case ThreadErrorEvent(message=message):
+                    if rate_limit_state["detected"] or _has_rate_limit_text(message):
+                        raise RuntimeError(f"Rate limit hit: {message}")
+                    raise RuntimeError(f"Codex stream error: {message}")
 
         if messages:
             final_response = messages[-1].content
@@ -166,9 +193,12 @@ class CodexAgentAdapter(AgentPort):
         messages: list[AgentMessage],
         tools_used: set[str],
         on_message: MessageCallback | None,
+        rate_limit_state: dict[str, bool] | None = None,
     ) -> None:
         """Process a SDK event."""
         logger.debug(f"[CODEX EVENT] {event}")
+        if rate_limit_state is None:
+            rate_limit_state = {"detected": False}
 
         match event:
             case ItemStartedEvent(item=CommandExecutionItem(command=cmd)):
@@ -180,7 +210,9 @@ class CodexAgentAdapter(AgentPort):
                 if on_message:
                     on_message(msg)
             case ItemCompletedEvent(item=item):
-                self._process_completed_item(item, messages, tools_used, on_message)
+                self._process_completed_item(
+                    item, messages, tools_used, on_message, rate_limit_state
+                )
 
     def _process_completed_item(
         self,
@@ -188,13 +220,18 @@ class CodexAgentAdapter(AgentPort):
         messages: list[AgentMessage],
         tools_used: set[str],
         on_message: MessageCallback | None,
+        rate_limit_state: dict[str, bool] | None = None,
     ) -> None:
         """Process a completed item from Codex SDK."""
+        if rate_limit_state is None:
+            rate_limit_state = {"detected": False}
         match item:
             case ReasoningItem(text=text) if text and on_message:
                 on_message(AgentMessage(role="thought", content=text))
 
             case AgentMessageItem(text=text) if text:
+                if _has_rate_limit_text(text):
+                    rate_limit_state["detected"] = True
                 msg = AgentMessage(role="assistant", content=text)
                 messages.append(msg)
                 if on_message:
@@ -203,6 +240,8 @@ class CodexAgentAdapter(AgentPort):
             case CommandExecutionItem(aggregated_output=output, exit_code=code, status=status):
                 if status == "failed" or (code is not None and code != 0):
                     logger.warning(f"[CODEX] Command failed (exit {code}): {output[:200]}")
+                if _has_rate_limit_text(output):
+                    rate_limit_state["detected"] = True
                 if len(output) > 500:
                     logger.debug(f"[CODEX] Output truncated from {len(output)} to 500 chars")
                 truncated = output[:500] + "..." if len(output) > 500 else output

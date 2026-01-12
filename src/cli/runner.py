@@ -25,7 +25,7 @@ from src.cli.formatters.stage_formatter import (
 from src.cli.formatters.tool_formatter import create_tool_callback
 from src.cli.mcp.ui import interactive_mcp_selection
 from src.cli.theme import theme
-from src.cli.utils import sanitize_terminal_input
+from src.cli.utils import has_rate_limit_text, sanitize_terminal_input
 from src.domain.entities.condition import Condition
 from src.domain.entities.plan import Plan
 from src.domain.value_objects.agent_provider import AgentProvider
@@ -510,7 +510,10 @@ async def run_task_async(
     except Exception as e:
         logger.error(f"Task failed: {e}")
         logger.debug("Full traceback:", exc_info=True)
-        console.print(f"[{theme.ERROR_BOLD}]Error:[/] {e}")
+        if has_rate_limit_text(str(e)):
+            console.print("[bold red]Rate limit hit. Waiting for API availability...[/]")
+        else:
+            console.print(f"[{theme.ERROR_BOLD}]Error:[/] {e}")
         raise typer.Exit(1) from e
 
 

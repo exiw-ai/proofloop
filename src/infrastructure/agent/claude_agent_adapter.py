@@ -73,7 +73,25 @@ def _make_workspace_validator(
 def _is_rate_limit_error(e: BaseException) -> bool:
     """Check if error is a rate limit error (retry infinitely)."""
     msg = str(e).lower()
-    return "hit your limit" in msg or "rate limit" in msg or "429" in msg or "usage limit" in msg
+    return (
+        "hit your limit" in msg
+        or "rate limit" in msg
+        or "usage limit" in msg
+        or "quota" in msg
+        or "429" in msg
+    )
+
+
+def _has_rate_limit_text(text: str) -> bool:
+    """Check text content for rate limit indicators."""
+    msg = text.lower()
+    return (
+        "hit your limit" in msg
+        or "rate limit" in msg
+        or "usage limit" in msg
+        or "quota" in msg
+        or "429" in msg
+    )
 
 
 def _is_retryable_error(e: BaseException) -> bool:
@@ -93,7 +111,7 @@ def _log_retry(retry_state: Any) -> None:
     if _is_rate_limit_error(exc) and not _rate_limit_notified:
         _rate_limit_notified = True
         console = Console()
-        console.print("[dim]Rate limit hit. Waiting for API availability...[/dim]")
+        console.print("[bold red]Rate limit hit. Waiting for API availability...[/]")
 
 
 class ClaudeAgentAdapter(AgentPort):
@@ -166,44 +184,55 @@ class ClaudeAgentAdapter(AgentPort):
         final_response = ""
         tools_used: set[str] = set()
         agent_info: AgentInfo | None = None
+        rate_limit_detected = False
 
         # Use streaming input when can_use_tool is set (SDK requirement)
         prompt_input = self._prompt_to_stream(prompt) if options.can_use_tool else prompt
 
-        async for message in query(prompt=prompt_input, options=options):
-            # Capture model info from first AssistantMessage
-            if isinstance(message, AssistantMessage) and agent_info is None:
-                agent_info = AgentInfo(
-                    provider="claude",
-                    model=message.model,
-                    model_provider="anthropic",
-                )
-                logger.info(f"[CLAUDE] Model: {agent_info.model}")
-
-            agent_msgs = self._convert_message(message)
-            for agent_msg in agent_msgs:
-                messages.append(agent_msg)
-
-                if on_message:
-                    on_message(agent_msg)
-
-                if agent_msg.tool_name:
-                    tools_used.add(agent_msg.tool_name)
-                    logger.info(
-                        f"[TOOL] {agent_msg.tool_name}: "
-                        f"{self._summarize_tool_input(agent_msg.tool_input)}"
+        try:
+            async for message in query(prompt=prompt_input, options=options):
+                # Capture model info from first AssistantMessage
+                if isinstance(message, AssistantMessage) and agent_info is None:
+                    agent_info = AgentInfo(
+                        provider="claude",
+                        model=message.model,
+                        model_provider="anthropic",
                     )
-                if agent_msg.role == "assistant" and agent_msg.content:
-                    final_response = agent_msg.content
-                    if not on_message:
-                        logger.debug(f"[AGENT] Response: {agent_msg.content[:300]}...")
+                    logger.info(f"[CLAUDE] Model: {agent_info.model}")
 
-            # Check for ResultMessage
-            if isinstance(message, ResultMessage):
-                logger.info(
-                    f"[AGENT] Completed: turns={message.num_turns}, "
-                    f"duration={message.duration_ms}ms"
-                )
+                agent_msgs = self._convert_message(message)
+                for agent_msg in agent_msgs:
+                    messages.append(agent_msg)
+
+                    if on_message:
+                        on_message(agent_msg)
+
+                    if agent_msg.tool_name:
+                        tools_used.add(agent_msg.tool_name)
+                        logger.info(
+                            f"[TOOL] {agent_msg.tool_name}: "
+                            f"{self._summarize_tool_input(agent_msg.tool_input)}"
+                        )
+                    if agent_msg.content and _has_rate_limit_text(agent_msg.content):
+                        rate_limit_detected = True
+                    if agent_msg.role == "assistant" and agent_msg.content:
+                        final_response = agent_msg.content
+                        if not on_message:
+                            logger.debug(f"[AGENT] Response: {agent_msg.content[:300]}...")
+
+                # Check for ResultMessage
+                if isinstance(message, ResultMessage):
+                    logger.info(
+                        f"[AGENT] Completed: turns={message.num_turns}, "
+                        f"duration={message.duration_ms}ms"
+                    )
+        except Exception as exc:
+            if rate_limit_detected and not _is_rate_limit_error(exc):
+                raise RuntimeError("Rate limit hit: model reported usage limits") from exc
+            raise
+
+        if rate_limit_detected:
+            raise RuntimeError("Rate limit hit: model reported usage limits")
 
         return AgentResult(
             messages=messages,

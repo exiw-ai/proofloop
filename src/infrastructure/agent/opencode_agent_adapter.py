@@ -102,7 +102,7 @@ def _log_retry(retry_state: Any) -> None:
     if _is_rate_limit_error(exc) and not _rate_limit_notified:
         _rate_limit_notified = True
         console = Console()
-        console.print("[dim]Rate limit hit. Waiting for API availability...[/dim]")
+        console.print("[bold red]Rate limit hit. Waiting for API availability...[/]")
 
 
 def _check_opencode_installed() -> bool:
