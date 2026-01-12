@@ -428,6 +428,35 @@ Report your progress as you work through each step."""
 {chr(10).join(f"- {f}" for f in latest_iteration.changes)}
 """
 
+        plan_context = ""
+        if task.plan:
+            steps_text = "\n".join(f"- {s.number}. {s.description}" for s in task.plan.steps)
+            targets = sorted({f for step in task.plan.steps for f in step.target_files})
+            targets_text = (
+                "\n".join(f"- {path}" for path in targets) if targets else "None specified"
+            )
+            plan_context = f"""
+## Plan context:
+Goal: {task.plan.goal}
+Steps:
+{steps_text}
+Target files:
+{targets_text}
+"""
+
+        structure_context = ""
+        if task.verification_inventory:
+            structure = task.verification_inventory.project_structure
+            root_files = structure.get("root_files", [])
+            src_dirs = structure.get("src_dirs", [])
+            test_dirs = structure.get("test_dirs", [])
+            structure_context = f"""
+## Project structure:
+- Root files: {', '.join(root_files) if root_files else 'None'}
+- Src dirs: {', '.join(src_dirs) if src_dirs else 'None'}
+- Test dirs: {', '.join(test_dirs) if test_dirs else 'None'}
+"""
+
         workspace = task.sources[0]
         prompt = f"""{workspace_restriction_prompt(workspace)}You are an INDEPENDENT VERIFIER checking if a condition is satisfied.
 
@@ -439,16 +468,20 @@ Report your progress as you work through each step."""
 
 ## Working directory:
 {workspace}
+{plan_context}{structure_context}
 {files_context}
 ## Facts from implementation (use these to inform your verification):
 {command_context}
 
 ## Instructions:
 1. Analyze what the condition requires
-2. Run appropriate commands to verify it
-3. IMPORTANT: If similar commands were run during implementation, use the SAME commands
+2. If the condition is specific and directly checkable, verify it as-is.
+3. If the condition is vague, derive 2-3 concrete checks using the plan and files above,
+   then verify those checks.
+4. Run appropriate commands to verify it
+5. IMPORTANT: If similar commands were run during implementation, use the SAME commands
    (e.g., if `poetry run pytest` was used, use that instead of bare `pytest`)
-4. Check the output against the condition's criteria
+6. Check the output against the condition's criteria
 
 After verification, respond with EXACTLY one of these on a single line:
 - CONDITION_PASS - if the condition is satisfied

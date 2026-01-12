@@ -49,7 +49,7 @@ class CommandTracker:
         """Process agent message to track commands."""
         if msg.role == "tool_use" and msg.tool_name:
             self._handle_tool_use(msg)
-        elif msg.role == "tool_result":
+        elif msg.role in ("tool_result", "tool"):
             self._handle_tool_result(msg)
 
     def _handle_tool_use(self, msg: AgentMessage) -> None:

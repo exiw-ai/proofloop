@@ -13,7 +13,8 @@ def format_result(console: Console, result: FinalResult) -> None:
         console.print(f"\n[{theme.STATUS_DONE}]✅ Task Complete![/]")
         if result.summary:
             console.print(f"\n[{theme.HEADER}]What was done:[/]")
-            console.print(f"   {result.summary}")
+            for line in result.summary.splitlines():
+                console.print(f"   {line}")
         console.print()
     elif result.status == TaskStatus.BLOCKED:
         console.print(f"\n[{theme.STATUS_BLOCKED}]❌ Task Blocked[/]")
@@ -26,7 +27,9 @@ def format_result(console: Console, result: FinalResult) -> None:
             console.print(f"[{theme.WARNING}]   {result.stopped_reason}[/]")
         console.print()
 
-    console.print(f"[{theme.HEADER}]📝 Summary:[/] {result.summary}")
+    console.print(f"[{theme.HEADER}]📝 Summary:[/]")
+    for line in result.summary.splitlines():
+        console.print(f"   {line}")
 
     if result.conditions:
         console.print(f"\n[{theme.HEADER}]✓ Conditions:[/]")

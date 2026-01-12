@@ -3,7 +3,7 @@ from loguru import logger
 from src.application.dto.final_result import FinalResult
 from src.application.dto.task_output import ConditionOutput
 from src.domain.entities.task import Task
-from src.domain.ports.diff_port import DiffPort
+from src.domain.ports.diff_port import DiffPort, DiffResult
 from src.domain.ports.task_repo_port import TaskRepoPort
 from src.domain.value_objects.evidence_types import EvidenceRef
 from src.domain.value_objects.task_status import TaskStatus
@@ -34,7 +34,7 @@ class FinalizeTask:
         # Determine final status
         if task.can_mark_done():
             final_status = TaskStatus.DONE
-            summary = "Task completed successfully"
+            summary = self._build_done_summary(task, diff_result)
             blocked_reason = None
             stopped_reason = None
         elif incoming_status == TaskStatus.BLOCKED:
@@ -85,6 +85,24 @@ class FinalizeTask:
         logger.info(f"Task {task.id} finalized with status {final_status.value}")
 
         return result
+
+    def _build_done_summary(self, task: Task, diff_result: DiffResult) -> str:
+        """Build a richer summary for completed tasks."""
+        headline = task.plan.goal if task.plan else task.description
+        lines = [f"Completed: {headline}."]
+
+        files = diff_result.files_changed
+        if files:
+            preview = files[:5]
+            suffix = f" (+{len(files) - 5} more)" if len(files) > 5 else ""
+            lines.append(f"Updated files: {', '.join(preview)}{suffix}.")
+        else:
+            lines.append("No files changed.")
+
+        if task.plan:
+            lines.append(f"Plan steps executed: {len(task.plan.steps)}.")
+
+        return "\n".join(lines)
 
     def _get_blocked_reason(self, task: Task) -> str:
         """Get reason for blocked status."""
