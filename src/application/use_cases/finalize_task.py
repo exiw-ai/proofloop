@@ -89,6 +89,7 @@ class FinalizeTask:
     def _build_done_summary(self, task: Task, diff_result: DiffResult) -> str:
         """Build a richer summary for completed tasks."""
         headline = task.plan.goal if task.plan else task.description
+        headline = headline.rstrip(".")
         lines = [f"Completed: {headline}."]
 
         files = diff_result.files_changed
@@ -96,11 +97,6 @@ class FinalizeTask:
             preview = files[:5]
             suffix = f" (+{len(files) - 5} more)" if len(files) > 5 else ""
             lines.append(f"Updated files: {', '.join(preview)}{suffix}.")
-        else:
-            lines.append("No files changed.")
-
-        if task.plan:
-            lines.append(f"Plan steps executed: {len(task.plan.steps)}.")
 
         return "\n".join(lines)
 

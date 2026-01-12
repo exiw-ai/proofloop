@@ -16,20 +16,27 @@ def format_result(console: Console, result: FinalResult) -> None:
             for line in result.summary.splitlines():
                 console.print(f"   {line}")
         console.print()
+        # For DONE, the summary is already shown above.
+        summary_printed = True
     elif result.status == TaskStatus.BLOCKED:
         console.print(f"\n[{theme.STATUS_BLOCKED}]❌ Task Blocked[/]")
         if result.blocked_reason:
             console.print(f"[{theme.ERROR}]   {result.blocked_reason}[/]")
         console.print()
+        summary_printed = False
     elif result.status == TaskStatus.STOPPED:
         console.print(f"\n[{theme.STATUS_STOPPED}]⏸️  Task Stopped[/]")
         if result.stopped_reason:
             console.print(f"[{theme.WARNING}]   {result.stopped_reason}[/]")
         console.print()
+        summary_printed = False
+    else:
+        summary_printed = False
 
-    console.print(f"[{theme.HEADER}]📝 Summary:[/]")
-    for line in result.summary.splitlines():
-        console.print(f"   {line}")
+    if not summary_printed:
+        console.print(f"[{theme.HEADER}]📝 Summary:[/]")
+        for line in result.summary.splitlines():
+            console.print(f"   {line}")
 
     if result.conditions:
         console.print(f"\n[{theme.HEADER}]✓ Conditions:[/]")
