@@ -406,7 +406,7 @@ class TestFinalizeTask:
         result = await finalize_use_case.execute(task_can_mark_done)
 
         assert result.status == TaskStatus.DONE
-        assert result.summary == "Task completed successfully"
+        assert result.summary == "Completed: Test task.\nUpdated files: file.py."
         assert result.diff == "+ new line"
         mock_task_repo.save.assert_called()
 
